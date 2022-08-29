@@ -223,14 +223,32 @@ def check_event_output(params, test, virsh_session=None, remote_virsh_session=No
         check_output(target_output, eval(expected_event_target), test)
 
 
-def poweroff_src_vm(params):
+def poweroff_vm(params):
     """
-    Poweroff guest on source host
+    Poweroff guest on source or destination host
 
-    :param params: dict, get vm session
+    :param params: dict, get vm session or migration object
     """
-    vm_session = params.get("vm_session")
-    vm_session.cmd("poweroff", ignore_all_errors=True)
+    poweroff_vm_dest = "yes" == params.get("poweroff_vm_dest", "no")
+    migration_obj = params.get("migration_obj")
+    test_case = params.get('test_case', '')
+
+    if poweroff_vm_dest:
+        dest_uri = params.get("virsh_migrate_desturi")
+        if test_case == "poweroff_vm":
+            time.sleep(90)
+        backup_uri, migration_obj.vm.connect_uri = migration_obj.vm.connect_uri, dest_uri
+        migration_obj.vm.cleanup_serial_console()
+        migration_obj.vm.create_serial_console()
+        remote_vm_session = migration_obj.vm.wait_for_serial_login(timeout=120)
+        remote_vm_session.cmd("poweroff", ignore_all_errors=True)
+        remote_vm_session.close()
+        migration_obj.vm.cleanup_serial_console()
+        migration_obj.vm.connect_uri = backup_uri
+    else:
+        vm_session = params.get("vm_session")
+        vm_session.cmd("poweroff", ignore_all_errors=True)
+        vm_session.close()
 
 
 def set_migrate_speed_to_high(params):
